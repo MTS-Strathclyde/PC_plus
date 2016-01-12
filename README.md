@@ -23,7 +23,7 @@ END
 
 1) 298.15 K methane hydration free energy calculation:
 
-```bash
+```
 $ python rism3d_pc.py methane.pdb
 Starting SFE calculation for methane.pdb at T=298.15 K
 Running AM1-BCC calculation...
@@ -37,7 +37,7 @@ Detailed output can be found in methane_298.15/methane.log
 
 2) 350 K calculation with tip3p water
 	
-```bash
+```
 $ python rism3d_pc.py methane.pdb -t 350 --smodel TP3
 Starting SFE calculation for methane.pdb at T=350.0 K
 Running AM1-BCC calculation...
@@ -51,7 +51,7 @@ Detailed output can be found in methane_350.0/methane.log
 	
 3) Using existing topology and susceptibility (xvv) files
 
-```bash
+```
 $ python rism3d_pc.py methane.pdb -p methane.prmtop -x water_nacl.xvv
 Starting SFE calculation for methane.pdb at T=298.15 K
 Reading user provided prmtop file
