@@ -5,10 +5,10 @@ Created on Thu Jan 30 16:04:49 2014
 
 @author: Maksim Misin (mishin1991@gmail.com)
 
-Compute hydration free energie with rism3d.singlpnt using GAFF force field
-and AM1-BCC charges. The script prepares topology, runs 1D-RISM and
-3D-RISM calculation and computes free energies using ISc and ISc* corrections.
-The output is written to separate resutls.txt file.
+Compute hydration free energy with rism3d.singlpnt and apply PC corrections. 
+The script also can prepare topology, minimize solute and run generate 
+susceptibility files using 1D-RISM. The output is written to separate .log and 
+results.txt files.
 
 As an input takes pdb file compatible with antechamber. For example:
 ATOM      1  C1  MOL     1       3.537   1.423   0.000  1.00  0.00
@@ -20,12 +20,32 @@ TER
 END
 
 To run the simmulation simply type:
-python run_3drism_ambertools.py molecule.pdb
+python rism3d_pc.py molecule.pdb
 
 The script requires working installations of python2.7 and AmberTools 12+
 
 For more information run:
 python rism3d_isc.py -h
+
+If you find the script useful, please cite:
+
+Misin, M.; Fedorov, M.; Palmer, D. Hydration Free Energies of Ionic Species 
+by Molecular Theory and Simulation, J. Phys. Chem. B. 2016. 
+http://dx.doi.org/10.1021/acs.jpcb.5b10809
+
+Misin, M.; Fedorov, M. V.; Palmer, D. S. Accurate Hydration Free Energies at 
+a Wide Range of Temperatures from 3D-RISM. J. Chem. Phys. 2015, 142, 091105. 
+http://dx.doi.org/10.1063/1.4914315
+
+an article where PC+ correction was originally proposed:
+
+Sergiievskyi, V.; Jeanmairet, G.; Levesque, M.; Borgis, D. Solvation 
+Free-Energy Pressure Corrections in the Three Dimensional Reference Interaction
+Site Model. J. Chem. Phys. 2015, 143, 184116. 
+http://dx.doi.org/10.1063/1.4935065
+
+as well all related amber RISM programs.
+
 
 
     This program is free software: you can redistribute it and/or modify
@@ -101,10 +121,10 @@ rism1d {name1d} > {name1d}.out || goto error
 """
 
 RUNLEAP = """source leaprc.gaff
-loadamberprep "{name}.prepin"
-check MOL
+mol = loadmol2 "{name}.mol2"
+check mol
 loadamberparams "{name}.frcmod"
-SaveAmberParm MOL "{name}.prmtop" "{name}.incrd"
+SaveAmberParm mol "{name}.prmtop" "{name}.incrd"
 SavePdb MOL "{name}.pdb"
 quit
 """
@@ -297,6 +317,9 @@ def process_command_line(argv):
                         help="""Maximum number of iterations in 3D-RISM
                         calculation [500].""",
                         default=500, type=int)
+    rism3d_options.add_argument('--rism3d_path',
+                        help="""Specify absolute path or exact name of rism3d.sngpnt
+                        [rism3d.snglpnt].""", default='rism3d.snglpnt')
     return parser.parse_args(argv)
 
 
@@ -392,7 +415,7 @@ def water_concentration(T):
 
 
 class Xvv(object):
-    """ Wrapper around xvv file. Also can compute 3d-rism pressure """
+    """ Wrapper around xvvfile used to compute 3d-rism pressure """
     def __init__(self, fname):
         """ Read xvvfile and set instance attributes 
         
@@ -483,14 +506,18 @@ class Xvv(object):
             self.species_densities.append(self.normalized_densities[pointer - 1])
         assert len(self.species_densities) == self.nspecies
     
-    def compute_3drism_pressures(self, k=1):
+    def compute_3drism_pressures(self, k=0):
         """ Compute 3drism pressure using loaded xvv file.
-        Uses equations from http://dx.doi.org/10.1063/1.4935065
+        Uses equation 20 from the article by Sergiievskyi et al. 
+        (http://dx.doi.org/10.1063/1.4935065). 
 
         Parameters
         ----------
         k : int
-            Which k value to use to compute pressure. 1 is recommended.
+            Which k value to use to compute pressure. The pressure can be pretty
+            sensitive to it. It is recommended to experiment with a couple of
+            k values or better, plot dependency of pressure on it to see
+            which value works best.
             
         Return
         ------
@@ -502,12 +529,10 @@ class Xvv(object):
         """
         xvv_k = self.xvv_data[k,:,:]
         density_vec = np.array(self.normalized_densities)
+        mult_vec = np.array(self.multiplicities)
         # Z_k from sergievskyi's article
-        z_k = 1/density_vec*(np.identity(self.nsites) - np.linalg.inv(xvv_k))
-        z_k_sum_densities2 = 0
-        for col, mult, dens in\
-               zip(z_k.T, self.multiplicities, self.normalized_densities):
-            z_k_sum_densities2 += np.sum(col)*mult*dens**2            
+        z_k = mult_vec/density_vec*(np.identity(self.nsites) - np.linalg.inv(xvv_k))
+        z_k_sum_densities2 = np.sum(density_vec*z_k*density_vec.T)
         densities_times_sites = [sites*dens for sites, dens in zip(self.total_sites_per_species,
                                                                    self.species_densities)]
         pressure = sum(densities_times_sites) - .5*z_k_sum_densities2
@@ -674,8 +699,8 @@ def generate_prmtop(name, logfile, molcharge=0, multiplicity=1):
     ante_out = subprocess.check_output(['antechamber',
                      '-i', '{}.pdb'.format(no_p_name),
                      '-fi', 'pdb',
-                     '-o', '{}.prepin'.format(no_p_name), #output file
-                     '-fo', 'prepi',   #output format describing each residue
+                     '-o', '{}.mol2'.format(no_p_name), #output file
+                     '-fo', 'mol2',   #output format describing each residue
                      '-c', 'bcc',      #charge method  (AM1-BCC)
                      '-s', '2',    #status info ; 2 means verbose
                      '-nc', str(molcharge),   #Net molecule charge
@@ -685,8 +710,8 @@ def generate_prmtop(name, logfile, molcharge=0, multiplicity=1):
     logfile.write(ante_out)
     #Run parmchk to generate missing gaff force field parameters
     parm_out = subprocess.check_output(['parmchk2',
-                     '-i', '{}.prepin'.format(no_p_name),
-                     '-f', 'prepi',
+                     '-i', '{}.mol2'.format(no_p_name),
+                     '-f', 'mol2',
                      '-o', '{}.frcmod'.format(no_p_name)], #file with missing FF params
                      cwd=p)
     logfile.write(parm_out)
@@ -992,7 +1017,8 @@ class RISM3D_Singlpnt(object):
                           solvbox=False,
                           grdspc=(0.5, 0.5, 0.5),
                           tolerance=1e-5, polar_decomp=False,
-                          verbose=0, maxstep=500):
+                          verbose=0, maxstep=500, 
+                          rism3d_path='rism3d.snglpnt'):
         """ Setup calculation rism3d.snglpnt. calculation.
 
         More details on each of the parameter can be found in AmberTools
@@ -1049,11 +1075,14 @@ class RISM3D_Singlpnt(object):
 
         maxstep: int, default 1000
             Number of iterations in 3D-RISM calculation.
+            
+        rism3d_path : str, default rism3d.snglpnt
+            Absolute path or exact name of rism3d.snglpnt program
         """
         grdspc = ','.join(map(str, grdspc))
         if solvbox:
             solvbox = ','.join(map(str, solvbox))
-        self.run_flags_list = ['rism3d.snglpnt',
+        self.run_flags_list = [rism3d_path,
              '--pdb', '{}.pdb'.format(self.no_p_name),
              '--prmtop', self.prmtop_name,
              '--xvv', self.xvv_name,
@@ -1104,6 +1133,7 @@ class RISM3D_Singlpnt(object):
             on windows. And in some other cases as well.
         """
         start_time = time.time()
+        #print(self.run_flags_list)
         if IS_UNIX:  # use timeout
             run3drism = RunCmd(self.run_flags_list, timeout,
                                self.logfile, cwd=self.p)
@@ -1135,14 +1165,14 @@ def clean_up(name, T, level):
     level : {0, 1, 2}
         0 - delete nothing;
         1 - delete ANTECHAMBER*, all water but .sh and .therm,
-        .frcmod, .prepin, NEWPDB.PDB, PREP.INF, ATOMTYPE.INF, runleap.in
+        .frcmod, .mol2, NEWPDB.PDB, PREP.INF, ATOMTYPE.INF, runleap.in
         sqm*, leap.log;
         2 - delete ALL but RESULTS_NAME and logfile - not recommended.
     """
     p, no_p_name = os.path.split(name)
     water_name = 'water_{}'.format(T)
     to_del1_glob = ['ANTECHAMBER*', 'sqm*', 'water*vv*']
-    to_del1_files = [no_p_name + '.prepin', no_p_name + '.frcmod',
+    to_del1_files = [no_p_name + '.mol2', no_p_name + '.frcmod',
                     water_name + '.inp', water_name + '.out',
                     water_name + '.sav', 'ATOMTYPE.INF',
                     'leap.log', 'NEWPDB.PDB', 'PREP.INF', 'runleap.in',
@@ -1244,7 +1274,8 @@ def main(argv):
                                 tolerance=args.tolerance,
                                 polar_decomp=args.polar_decomp,
                                 verbose=args.verbose3d,
-                                maxstep=args.maxstep3d)
+                                maxstep=args.maxstep3d,
+                                rism3d_path=args.rism3d_path)
     print('Running 3D-RISM calculation...')
     rism_calc.run_calculation_and_log(args.timeout)
     pc_plus = write_results(name, xvv_obj)
