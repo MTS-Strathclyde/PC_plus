@@ -5,7 +5,7 @@ Created on Thu Jan 30 16:04:49 2014
 
 @author: Maksim Misin (mishin1991@gmail.com)
 
-Compute hydration free energy with rism3d.singlpnt and apply PC corrections. 
+Compute solvation free energy with rism3d.singlpnt and apply PC corrections. 
 The script also can prepare topology, minimize solute and run generate 
 susceptibility files using 1D-RISM. The output is written to separate .log and 
 results.txt files.
@@ -155,12 +155,12 @@ MIN_SCRIPT_NAME = 'min.input'
 RISM1D_NAME = '{smodel}_{temp}'
 RESULTS_NAME = 'results.txt'
 
-RESULTS = """dGhyd(closure)= {exchem} kcal/mol
-dGhyd(GF)= {gf} kcal/mol
+RESULTS = """dGsolv(closure)= {exchem} kcal/mol
+dGsolv(GF)= {gf} kcal/mol
 PMV= {pmv} A^3
 
-dGhyd(PC+)= {PC_plus} kcal/mol
-dGhyd(PC)= {PC} kcal/mol
+dGsolv(PC+)= {PC_plus} kcal/mol
+dGsolv(PC)= {PC} kcal/mol
 
 P_minus_ideal_gas_pressure= {pressure_plus} kcal/mol/A^3
 P= {pressure} kcal/mol/A^3
@@ -283,6 +283,9 @@ def process_command_line(argv):
     rism3d_options.add_argument('--write_u',
                         help="""Write solute solvent potential energy grid.""",
                         action='store_true')
+    rism3d_options.add_argument('--write_h',
+                        help="""Write total correlation function in k space.""",
+                        action='store_true')
     rism3d_options.add_argument('--write_asymp',
                         help="""Write asymptotics of total and direct 
                         correlation fuctions in real space.""",
@@ -350,6 +353,8 @@ def water_dielectric_const(T):
     >>> round(water_dielectric_const(375), 3)
     55.266
     """
+    if not 253.15 <= T <= 383.15:
+        raise ValueError("Temperature is outside of allowed range.")
     T_star = T/300.0
     coefs = [-43.7527, 299.504, -399.364, 221.327]
     exp_f = [-0.05, -1.47, -2.11, -2.31]
@@ -384,6 +389,8 @@ def water_concentration(T):
     >>> round(water_concentration(298.15), 3)
     55.343
     """
+    if not 253.15 <= T <= 383.15:
+        raise ValueError("Temperature is outside of allowed range.")
     p0 = 10.0**5    # Pa
     R = 8.31464     # J/mol/K
     Tr = 10.0
@@ -755,10 +762,10 @@ def check_consistency(prmtop_name, name):
         for line in f:
             if line.startswith('%FLAG ATOM_NAME'):
                 f.next() # skip one line
-                atom_name_row = next(f)
+                atom_name_row = next(f).strip('\n')
                 while not atom_name_row.startswith('%'):
                     prmtop_atom_string += atom_name_row[:lastcol+1]
-                    atom_name_row = next(f)
+                    atom_name_row = next(f).strip('\n')
         # split string into characters of length n
         prmtop_atom_list = [prmtop_atom_string[i:i+n] \
                                 for i in range(0, len(prmtop_atom_string), n)]
@@ -955,6 +962,9 @@ def run_rism1d(name, logfile, T=298.15, smodel="SPC", rism1d="DRISM",
         logfile.flush()
         xvv = '{}.xvv'.format(rism1d_name)
     else:
+        if abs(T - 298.15) > 1.0e-4:
+            print('Warning: xvv file submitted')
+            print('Temperature passed from command line will be ignored!')
         print('Using provided xvv file...')
         xvv = os.path.relpath(xvv, p) # path relative to the calc. directory
     return xvv
@@ -1030,18 +1040,18 @@ class RISM3D_Singlpnt(object):
             Allowed closure values are kh, hnc, pseN. Here N is an
             integer.
 
-        write_g : boolean, default True
+        write_g : boolean, default False
             Specifies whether program will write radial distribution
             functions.
 
-        write_h : boolean, default True
+        write_h : boolean, default False
             Specifies whether program will write total correlation
             functions in k space.
 
-        write_c : boolean, default True
+        write_c : boolean, default False
             Specifies wheter program will write direct correlation
             functions.
-
+            
         write_u : boolean, default False
             Specifies wheter program will write potential energy
             grid.
@@ -1236,7 +1246,7 @@ def write_results(name, xvv_obj):
         f.write(results)
     print('Calculation has finished')
     print('RISM exchem={} kcal/mol'.format(exchem))
-    print('PC+ dG*(hyd)={} kcal/mol'.format(PC_plus))
+    print('PC+ dG*(solv)={} kcal/mol'.format(PC_plus))
     print('Detailed output can be found in {}.log'.format(name))
     return PC_plus
 
@@ -1246,10 +1256,7 @@ def main(argv):
     for executable in REQUIRED_EXECUTABLES:
         if not distutils.spawn.find_executable(executable):
             raise NameError("{} is not found!".format(executable))
-    if not 253.15 <= args.temperature <= 383.15:
-        raise ValueError("Temperature is outside of allowed range.")
-    print('Starting SFE calculation for {} at T={} K'.format(args.file,
-                                                            args.temperature))
+    print('Starting SFE calculation for {}'.format(args.file))
     name, dir_name = prepare_calc_directory(args.file, args.temperature, args.dir_name)
     logfile = prepare_logfile(name, argv)
     prmtop_name = prepare_prmtop(args, name, dir_name, logfile)
@@ -1264,6 +1271,7 @@ def main(argv):
                                 xvv=xvv)
     rism_calc.setup_calculation(args.closure, 
                                 write_g=args.write_g, 
+                                write_h=args.write_h,
                                 write_c=args.write_c,
                                 write_u=args.write_u,
                                 write_asymp=args.write_asymp,
