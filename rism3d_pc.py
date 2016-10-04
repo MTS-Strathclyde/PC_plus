@@ -120,7 +120,7 @@ rism1d {name1d} > {name1d}.out || goto error
 
 """
 
-RUNLEAP = """source leaprc.gaff
+RUNLEAP = """source leaprc.gaff2
 mol = loadmol2 "{name}.mol2"
 check mol
 loadamberparams "{name}.frcmod"
@@ -156,7 +156,6 @@ RISM1D_NAME = '{smodel}_{temp}'
 RESULTS_NAME = 'results.txt'
 
 RESULTS = """dGsolv(closure)= {exchem} kcal/mol
-dGsolv(GF)= {gf} kcal/mol
 PMV= {pmv} A^3
 
 dGsolv(PC+)= {PC_plus} kcal/mol
@@ -709,6 +708,7 @@ def generate_prmtop(name, logfile, molcharge=0, multiplicity=1):
                      '-o', '{}.mol2'.format(no_p_name), #output file
                      '-fo', 'mol2',   #output format describing each residue
                      '-c', 'bcc',      #charge method  (AM1-BCC)
+                     '-at','gaff2',    #atom types (gaff2)
                      '-s', '2',    #status info ; 2 means verbose
                      '-nc', str(molcharge),   #Net molecule charge
                      '-m', str(multiplicity)   #Multiplicity
@@ -895,13 +895,12 @@ def minimize_solute(name, logfile, prmtop_name, args, xvv):
                                        ],
                                        cwd=p)
     logfile.write(min_out)
-    with open(rst_name) as f:
-        rst_text = f.read()
     # converst restart file to pdb and write
-    p = subprocess.Popen(['ambpdb',
+    p = subprocess.Popen(['ambpdb', '-c', '{}.incrd'.format(no_p_name),
                           '-p', prmtop_name], stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE, stdin=subprocess.PIPE)
-    pdb_min = p.communicate(input=rst_text)[0]
+                          stderr=subprocess.PIPE, cwd=p)
+    pdb_min,err = p.communicate()
+    #print(err)
     #print(pdb_min)
     with open(name + '.pdb', 'w') as f:
         f.write(pdb_min)
@@ -1229,18 +1228,21 @@ def write_results(name, xvv_obj):
         for line in f:
             if line[0:11] == "rism_exchem":
                 exchem = float(line.split()[1])
-            if line[0:11] == "rism_exchGF":
-                gf = float(line.split()[1])
             if line[0:11] == "rism_volume":
+                pmv = float(line.split()[1])
+            # supporting new versions of amber
+            if line.startswith('rism_excessChemicalPotential'):
+                exchem = float(line.split()[1])
+            if line.startswith("rism_partialMolarVolume"):
                 pmv = float(line.split()[1])
     if not pmv:
         raise ValueError("Cannot find pmv value in log file. Most likely calculation didn't converge.")
     # compute PC
     pres, pres_plus = xvv_obj.compute_3drism_pressures() # [kcal/mol/A^3]
     PC = exchem - pres*pmv # pressure correction [kcal/mol] 
-    PC_plus = exchem -pres_plus*pmv # pressure correction plus [kcal/mol]
+    PC_plus = exchem - pres_plus*pmv # pressure correction plus [kcal/mol]
     #Write and print results
-    results = RESULTS.format(exchem=exchem, gf=gf, pmv=pmv, PC=PC, PC_plus=PC_plus,
+    results = RESULTS.format(exchem=exchem, pmv=pmv, PC=PC, PC_plus=PC_plus,
                              pressure=pres, pressure_plus=pres_plus)
     with open(os.path.join(p, RESULTS_NAME), 'w') as f:
         f.write(results)
