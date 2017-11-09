@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Fri May 22 17:48:40 2015
@@ -6,14 +6,15 @@ Created on Fri May 22 17:48:40 2015
 @author: max
 """
 
-from __future__ import print_function, division
-
 import os
 import argparse
 import sys
 import glob
 import shlex
-import pybel
+try:
+    import pybel
+except ImportError:
+    print("Pybel not found, some features may not work correctly!")
 import subprocess
 try:
     import parmed.tools.actions as pact
@@ -73,7 +74,7 @@ def process_command_line(argv):
                         help="""Charge model to use. All antechamber options as
                         well as opls will work [bcc].""", default='bcc')                     
     parser.add_argument('-lj', '--lennard_jones',
-                        help="""Lennard jones parameters to use (gaff or opls)
+                        help="""Lennard jones parameters to use (opls, gaff, gaff2, sybyl)
                         [gaff]""", default='gaff')                     
     parser.add_argument('--scale_r',
                         help="""Scale all lennard jones radiuses . [1.0]""",
@@ -218,12 +219,16 @@ def generate_prmtop(name, args):
         p = '.'
     #Firstly we use antechamber to recognize atom and bonding types, and
     #generate topology. Even if we want opls lj paramters, we still need
-    #to assign gaff atom types first to generate .prmtop file and only then
+    #to assign atom types first to generate .prmtop file and only then
     #change them.
-    if args.lennard_jones == 'gaff2':
-        at  = 'gaff2'
+    if args.input_lj or args.lennard_jones == 'opls':
+        at  = 'sybyl'
     else:
-        at = 'gaff'
+        at = args.lennard_jones
+    if args.input_chg or args.charge_model == 'opls':
+        cm = 'mul'
+    else:
+        cm = args.charge_model
     if args.charge_f:
         raise ValueError('This option is bugged - needs fixing')
         args.charge_f = os.path.relpath(args.charge_f, p) #path relative to calc dir
@@ -239,34 +244,21 @@ def generate_prmtop(name, args):
                          ],
                          cwd=p)
     else:
-        # if mol2 was supplied no need to do anything
-        if args.charge_model == 'opls':
-            # we still need to assign atom types
+        if args.moltype == "mol2":
+            pass
+        else: 
             subprocess.check_output(['antechamber',
-                             '-i',  args.file,
-                             '-fi', args.moltype,
-                             '-at', at,
-                             '-o', '{}.{}'.format(no_p_name, args.moltype), #output file
-                             '-fo', '{}'.format(args.moltype),   #output format describing each residue
-                             '-c', 'gas',      #charge method  (gas)
-                             '-s', '2',    #status info ; 2 means verbose
-                             '-nc', str(args.molcharge),   #Net molecule charge
-                             '-m', str(args.multiplicity)   #Multiplicity
-                             ],
-                             cwd=p)
-        else:
-            subprocess.check_output(['antechamber',
-                             '-i',  args.file,
-                             '-fi', args.moltype,
-                             '-at', at,
-                             '-o', '{}.{}'.format(no_p_name, args.moltype), #output file
-                             '-fo', '{}'.format(args.moltype),   #output format describing each residue
-                             '-c', args.charge_model,      #charge method  (AM1-BCC)
-                             '-s', '2',    #status info ; 2 means verbose
-                             '-nc', str(args.molcharge),   #Net molecule charge
-                             '-m', str(args.multiplicity)   #Multiplicity
-                             ],
-                             cwd=p)
+                          '-i',  args.file,
+                          '-fi', args.moltype,
+                          '-at', at,
+                          '-o', '{}.mol2'.format(no_p_name), #output file
+                          '-fo', 'mol2',  #output format
+                          '-c', cm,      #charge method 
+                          '-s', '2',    #status info ; 2 means verbose
+                          '-nc', str(args.molcharge),   #Net molecule charge
+                          '-m', str(args.multiplicity)   #Multiplicity
+                          ],
+                          cwd=p)
 #    #Run parmchk to generate missing gaff force field parameters
     try:
         subprocess.check_output(['parmchk2',
@@ -362,7 +354,7 @@ def get_opls_parameters(args, name):
     
 
 def get_usr_input(parm_name, atname, old_value):
-    usr_value = raw_input('Provide new {} for {} (blank=keep old) [{:f}]: '.\
+    usr_value = input('Provide new {} for {} (blank=keep old) [{:f}]: '.\
                         format(parm_name, atname, old_value))
     if usr_value:
         return float(usr_value)
@@ -476,7 +468,7 @@ def main(argv):
     for f in will_be_deleted_list:
         try:
             os.unlink(f)
-        except OSError, e:
+        except OSError as e:
             if e.errno == 2:
                 pass
             else:
