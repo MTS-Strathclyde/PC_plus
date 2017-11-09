@@ -1,10 +1,12 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
 Created on Fri May 22 17:48:40 2015
 
 @author: max
 """
+
+from __future__ import print_function, division
 
 import os
 import argparse
@@ -17,10 +19,10 @@ except ImportError:
     print("Pybel not found, some features may not work correctly!")
 import subprocess
 try:
-    import parmed.tools.actions as pact
+    import parmed.tools as pact
     from parmed.amber import AmberParm
 except ImportError as e:
-    print('Make sure you are using AmberTools16!')
+    print('Make sure you are using AmberTools17!')
     raise e
 
 MIN_SCRIPT = """Normal minimization
@@ -221,21 +223,24 @@ def generate_prmtop(name, args):
     #generate topology. Even if we want opls lj paramters, we still need
     #to assign atom types first to generate .prmtop file and only then
     #change them.
-    if args.input_lj or args.lennard_jones == 'opls':
-        at  = 'sybyl'
-    else:
-        at = args.lennard_jones
     if args.input_chg or args.charge_model == 'opls':
-        cm = 'mul'
-    else:
-        cm = args.charge_model
-    if args.charge_f:
+        subprocess.check_output(["antechamber",
+                         '-i', args.file,
+                         '-fi', args.moltype,
+                         '-at', args.lennard_jones, 
+                         '-o', '{}.mol2'.format(no_p_name), #output file
+                         '-fo', 'mol2',   #output format describing each residue
+                         '-s', '2',    #status info ; 2 means verbose
+                         '-dr', 'n'   #do not check molecule for "correctness"
+                         ],
+                         cwd=p)
+    elif args.charge_f:
         raise ValueError('This option is bugged - needs fixing')
         args.charge_f = os.path.relpath(args.charge_f, p) #path relative to calc dir
         subprocess.check_output(['antechamber',
                          '-i', args.file,
                          '-fi', args.moltype,
-                         '-at', at,
+                         '-at', args.lennard_jones,
                          '-o', '{}.mol2'.format(no_p_name), #output file
                          '-fo', 'mol2',   #output format describing each residue
                          '-c', 'rc',      #charge method: read in charge
@@ -244,21 +249,18 @@ def generate_prmtop(name, args):
                          ],
                          cwd=p)
     else:
-        if args.moltype == "mol2":
-            pass
-        else: 
-            subprocess.check_output(['antechamber',
-                          '-i',  args.file,
-                          '-fi', args.moltype,
-                          '-at', at,
-                          '-o', '{}.mol2'.format(no_p_name), #output file
-                          '-fo', 'mol2',  #output format
-                          '-c', cm,      #charge method 
-                          '-s', '2',    #status info ; 2 means verbose
-                          '-nc', str(args.molcharge),   #Net molecule charge
-                          '-m', str(args.multiplicity)   #Multiplicity
-                          ],
-                          cwd=p)
+        subprocess.check_output(['antechamber',
+                      '-i',  args.file,
+                      '-fi', args.moltype,
+                      '-at', args.lennard_jones,
+                      '-o', '{}.mol2'.format(no_p_name), #output file
+                      '-fo', 'mol2',  #output format
+                      '-c', args.cm,      #charge method 
+                      '-s', '2',    #status info ; 2 means verbose
+                      '-nc', str(args.molcharge),   #Net molecule charge
+                      '-m', str(args.multiplicity)   #Multiplicity
+                      ],
+                      cwd=p)
 #    #Run parmchk to generate missing gaff force field parameters
     try:
         subprocess.check_output(['parmchk2',
@@ -354,7 +356,7 @@ def get_opls_parameters(args, name):
     
 
 def get_usr_input(parm_name, atname, old_value):
-    usr_value = input('Provide new {} for {} (blank=keep old) [{:f}]: '.\
+    usr_value = raw_input('Provide new {} for {} (blank=keep old) [{:f}]: '.\
                         format(parm_name, atname, old_value))
     if usr_value:
         return float(usr_value)
