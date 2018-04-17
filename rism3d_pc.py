@@ -125,7 +125,7 @@ mol = loadmol2 "{name}.mol2"
 check mol
 loadamberparams "{name}.frcmod"
 SaveAmberParm mol "{name}.prmtop" "{name}.incrd"
-SavePdb MOL "{name}.pdb"
+SavePdb mol "{name}.pdb"
 quit
 """
 
@@ -194,9 +194,9 @@ def process_command_line(argv):
                             tleap. By default AM1-BCC charges and GAFF
                             will be used.""")
     molecule_options.add_argument('file', metavar='molec.pdb',
-                        help="""Input solute file. Must be in pdb format
-                        acceptable by Antechamber. Must have a .pdb
-                        extension.""")
+                        help="""Input solute file. Must be in a format
+                        acceptable by Antechamber. The extension must
+                        indicate the format (e.g. pdb or mol2).""")
     molecule_options.add_argument('-p', '--prmtop',
                         help="""Path to parameters and topology (prmtop) file
                         of solute.""")
@@ -204,8 +204,7 @@ def process_command_line(argv):
                         help="""Scale all solute by this value prmtop file [1.0].""",
                         default=1.0, type=float)
     molecule_options.add_argument('-c', '--molcharge',
-                        help="""Charge of the solute [0].""", default=0,
-                        type=int)
+                        help="""Charge of the solute [0].""", default="0")
     molecule_options.add_argument('--multiplicity',
                         help="""Multiplicity of the solute [1].""", default=1,
                         type=int)
@@ -627,14 +626,17 @@ def prepare_calc_directory(mol_path, T, dir_name=None):
 
     Returns
     -------
-    name: string
-        Full path to pdb file without extension
     dir_name: string
         Name of the calculation directory
+    name: string
+        Full path to input file without extension
+    ext: string
+        Extension of the file (everything after last '.').
     """
     pdb_path, name_without_path = os.path.split(mol_path)
     if not dir_name:
-        dir_name = os.path.join(pdb_path, name_without_path[:-4] + '_' + str(T))
+        dir_name = os.path.join(pdb_path,
+                        name_without_path.rsplit('.',1)[0] + '_' + str(T))
     try:
         os.mkdir(dir_name)
     except OSError, e:
@@ -644,7 +646,8 @@ def prepare_calc_directory(mol_path, T, dir_name=None):
             raise e
     name = os.path.join(dir_name, name_without_path)
     shutil.copy(mol_path, name)
-    return name[:-4], dir_name
+    name, ext = name.rsplit('.', 1)
+    return dir_name, name, ext
 
 
 def prepare_logfile(name, argv):
@@ -653,7 +656,7 @@ def prepare_logfile(name, argv):
     Parameters
     ----------
     name : string
-        Full path to pdb file without extension
+        Full path to calculation directory/name
     
     argv : list
         Command used to start script
@@ -674,19 +677,22 @@ def prepare_logfile(name, argv):
     return logfile
 
 
-def generate_prmtop(name, logfile, molcharge=0, multiplicity=1):
+def generate_prmtop(name, ext, logfile, molcharge=0, multiplicity=1):
     """Generate topology file using GAFF and AM1-BCC charges, scaled by the supplied
     factor.
 
     Parameters
     ----------
     name : string
-        Full path to pdb file without extension
+        Full path to molecule structure file
+
+    ext : string
+        Structre file extension (indicating structure type)
 
     logfile : A writable file object
         A file to which calculation std. output will be written
 
-    molcharge : int
+    molcharge : int | filename (string)
         Charge of the solute
 
     multiplicity : int
@@ -702,17 +708,23 @@ def generate_prmtop(name, logfile, molcharge=0, multiplicity=1):
         p = '.'
     #Firstly we use antechamber to recognize atom and bonding types, and
     #generate topology
+    if isinstance(molcharge, int):
+        chg = ['-c', 'bcc',      #charge method  (AM1-BCC)
+               '-nc', str(molcharge),   #Net molecule charge
+               '-m', str(multiplicity)   #Multiplicity
+              ]
+    else:
+        chg = ['-c', 'rc',       #charge method  (read)
+               '-cf', molcharge  #charge file
+              ]
     ante_out = subprocess.check_output(['antechamber',
-                     '-i', '{}.pdb'.format(no_p_name),
-                     '-fi', 'pdb',
-                     '-o', '{}.mol2'.format(no_p_name), #output file
-                     '-fo', 'mol2',   #output format describing each residue
-                     '-c', 'bcc',      #charge method  (AM1-BCC)
-                     '-at','gaff2',    #atom types (gaff2)
-                     '-s', '2',    #status info ; 2 means verbose
-                     '-nc', str(molcharge),   #Net molecule charge
-                     '-m', str(multiplicity)   #Multiplicity
-                     ],
+                     '-i', '{}.{}'.format(no_p_name, ext),
+                     '-fi', ext,
+                     '-o', '{}.mol2'.format(no_p_name), # output file
+                     '-fo', 'mol2',  # output format describing each residue
+                     '-at','amber',  # atom types (gaff2)
+                     '-s', '2'       # status info ; 2 means verbose
+                     ] + chg,
                      cwd=p)
     logfile.write(ante_out)
     #Run parmchk to generate missing gaff force field parameters
@@ -753,7 +765,7 @@ def check_consistency(prmtop_name, name):
     pdb_atom_list = []
     with open(name + '.pdb') as f:
         for line in f:
-            if line.startswith('ATOM'):
+            if line[:6] in ["ATOM  ", "HETATM"]:
                 pdb_atom_list.append(line[12:16])  # atom name field
     with open(os.path.join(p, prmtop_name)) as f:
         prmtop_atom_string = ''
@@ -777,7 +789,7 @@ in prmtop file: {}. Check the consistency between two files.".format(i,
                         pdb_aname.strip(), prmtop_aname.strip()))
 
 
-def prepare_prmtop(args, name, dir_name, logfile):
+def prepare_prmtop(args, name, ext, dir_name, logfile):
     """ Places appropriate prmtop file into the calculation folder and scales
     it's charges if necessary.
 
@@ -789,6 +801,9 @@ def prepare_prmtop(args, name, dir_name, logfile):
 
     name : string
         Calculation name
+
+    ext : string
+        Structure type (extension).
 
     dir_name : string
         Name of calculation directory
@@ -805,9 +820,16 @@ def prepare_prmtop(args, name, dir_name, logfile):
     """
     # Copy prmtop file, because we might want to change it (change charges)
     if not args.prmtop:
-        print('Running AM1-BCC calculation...')
-        prmtop_name = generate_prmtop(name, logfile, args.molcharge, args.multiplicity)
+        try:
+            chg = int(args.molcharge)
+            print('Running AM1-BCC calculation...')
+        except ValueError:
+            chg = "../" + args.molcharge
+            print('Reading chargs from {}...'.format(chg))
+        prmtop_name = generate_prmtop(name, ext, logfile, chg, args.multiplicity)
     else:
+        if ext != 'pdb':
+            raise ValueError, "Use of prmtop requires a pdb format."
         print('Reading user provided prmtop file')
         try:
             shutil.copy(args.prmtop, dir_name)
@@ -1236,6 +1258,7 @@ def write_results(name, xvv_obj):
             if line.startswith("rism_partialMolarVolume"):
                 pmv = float(line.split()[1])
     if not pmv:
+        print(open(log_name).read())
         raise ValueError("Cannot find pmv value in log file. Most likely calculation didn't converge.")
     # compute PC
     pres, pres_plus = xvv_obj.compute_3drism_pressures() # [kcal/mol/A^3]
@@ -1259,14 +1282,15 @@ def main(argv):
         if not distutils.spawn.find_executable(executable):
             raise NameError("{} is not found!".format(executable))
     print('Starting SFE calculation for {}'.format(args.file))
-    name, dir_name = prepare_calc_directory(args.file, args.temperature, args.dir_name)
+    dir_name, name, ext = prepare_calc_directory(args.file, args.temperature, args.dir_name)
     logfile = prepare_logfile(name, argv)
-    prmtop_name = prepare_prmtop(args, name, dir_name, logfile)
+    prmtop_name = prepare_prmtop(args, name, ext, dir_name, logfile)
     #xvv is the path to xvv file relative to calc directory
     xvv = run_rism1d(name, logfile, args.temperature, args.smodel,
                      args.rism1d, args.closure[-1], xvv=args.xvv)
     xvv_obj = Xvv(os.path.join(dir_name, xvv))
     if args.minimize:
+        print("Minimizing solute.")
         minimize_solute(name, logfile, prmtop_name, args, xvv)
     rism_calc = RISM3D_Singlpnt(name, xvv_obj.temperature,
                                 logfile, prmtop_name=prmtop_name,
