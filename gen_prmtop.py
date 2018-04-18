@@ -255,7 +255,7 @@ def generate_prmtop(name, args):
                       '-at', args.lennard_jones,
                       '-o', '{}.mol2'.format(no_p_name), #output file
                       '-fo', 'mol2',  #output format
-                      '-c', args.cm,      #charge method 
+                      '-c', args.charge_model,      #charge method 
                       '-s', '2',    #status info ; 2 means verbose
                       '-nc', str(args.molcharge),   #Net molecule charge
                       '-m', str(args.multiplicity)   #Multiplicity
