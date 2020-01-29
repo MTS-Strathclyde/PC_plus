@@ -5,9 +5,9 @@ Created on Thu Jan 30 16:04:49 2014
 
 @author: Maksim Misin (mishin1991@gmail.com)
 
-Compute solvation free energy with rism3d.singlpnt and apply PC corrections. 
-The script also can prepare topology, minimize solute and run generate 
-susceptibility files using 1D-RISM. The output is written to separate .log and 
+Compute solvation free energy with rism3d.singlpnt and apply PC corrections.
+The script also can prepare topology, minimize solute and run generate
+susceptibility files using 1D-RISM. The output is written to separate .log and
 results.txt files.
 
 As an input takes pdb file compatible with antechamber. For example:
@@ -25,48 +25,27 @@ python rism3d_pc.py molecule.pdb
 The script requires working installations of python2.7 and AmberTools 12+
 
 For more information run:
-python rism3d_isc.py -h
+python rism3d_pc.py -h
 
 If you find the script useful, please cite:
 
-Misin, M.; Fedorov, M.; Palmer, D. Hydration Free Energies of Ionic Species 
-by Molecular Theory and Simulation, J. Phys. Chem. B. 2016. 
+Misin, M.; Fedorov, M.; Palmer, D. Hydration Free Energies of Ionic Species
+by Molecular Theory and Simulation, J. Phys. Chem. B. 2016.
 http://dx.doi.org/10.1021/acs.jpcb.5b10809
 
-Misin, M.; Fedorov, M. V.; Palmer, D. S. Accurate Hydration Free Energies at 
-a Wide Range of Temperatures from 3D-RISM. J. Chem. Phys. 2015, 142, 091105. 
+Misin, M.; Fedorov, M. V.; Palmer, D. S. Accurate Hydration Free Energies at
+a Wide Range of Temperatures from 3D-RISM. J. Chem. Phys. 2015, 142, 091105.
 http://dx.doi.org/10.1063/1.4914315
 
 an article where PC+ correction was originally proposed:
 
-Sergiievskyi, V.; Jeanmairet, G.; Levesque, M.; Borgis, D. Solvation 
+Sergiievskyi, V.; Jeanmairet, G.; Levesque, M.; Borgis, D. Solvation
 Free-Energy Pressure Corrections in the Three Dimensional Reference Interaction
-Site Model. J. Chem. Phys. 2015, 143, 184116. 
+Site Model. J. Chem. Phys. 2015, 143, 184116.
 http://dx.doi.org/10.1063/1.4935065
 
-as well all related amber RISM programs.
-
-
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-
+as well all related AmberTools' RISM programs.
 """
-
-from __future__ import print_function
-from __future__ import unicode_literals
-from __future__ import division
 
 import sys
 import argparse
@@ -85,10 +64,8 @@ import numpy as np
 ## Non RISM globals ##
 __version__ = '2016.1'
 
-REQUIRED_EXECUTABLES = ['antechamber', 'parmchk', 'tleap', 'rism3d.snglpnt',
+REQUIRED_EXECUTABLES = ['antechamber', 'parmchk2', 'tleap', 'rism3d.snglpnt',
                         'rism1d', 'sander', 'ambpdb']
-
-IS_UNIX = os.name == 'posix'
 
 ## Constants ##
 K_B = 1.9872041E-3 # boltzmann const in kcal/mol/K
@@ -97,7 +74,7 @@ N_A = 6.022141e23 # avogadro's constant
 
 ## RISM-related globals ##
 
-SOLV_SUCEPT_SCRPT = """#!/bin/csh -f
+SOLV_SUCEPT_SCRPT = """#!/bin/bash
 
 cat > {name1d}.inp <<EOF
 &PARAMETERS
@@ -112,12 +89,11 @@ cat > {name1d}.inp <<EOF
 /
     &SPECIES                               !SPC water
     DENSITY={conc}d0,
-    MODEL="$AMBERHOME/dat/rism1d/model/{smodel}.mdl"
+    MODEL="$AMBERHOME/dat/rism1d/mdl/{smodel}.mdl"
 /
 EOF
 
-rism1d {name1d} > {name1d}.out || goto error
-
+rism1d {name1d} > {name1d}.out
 """
 
 RUNLEAP = """source leaprc.gaff2
@@ -187,9 +163,9 @@ def process_command_line(argv):
             """)
     #molecule options
     molecule_options = parser.add_argument_group('Solute options',
-                            """Options related to a solute molecule. 
+                            """Options related to a solute molecule.
                             Calculation requires only pdb and prmtop files.
-                            If prmtop file is not present, script will try to 
+                            If prmtop file is not present, script will try to
                             create this file using antechamber and
                             tleap. By default AM1-BCC charges and GAFF
                             will be used.""")
@@ -216,9 +192,9 @@ def process_command_line(argv):
                         """)
     #1drism
     rism1d_options = parser.add_argument_group('1D-RISM options',
-                            """3D-RISM calculation requires xvv file 
+                            """3D-RISM calculation requires xvv file
                             (site-site susceptibilities) to run.
-                            If such file is not provided script can run a 
+                            If such file is not provided script can run a
                             1D-RISM to try to genrate it, but will asume that
                             the solvent is pure water. Some of the 1D-RISM related
                             options are in 3D-RISM group. """)
@@ -229,8 +205,8 @@ def process_command_line(argv):
                         temeprature will be read from this file.""")
     rism1d_options.add_argument('--smodel',
                         help="""Solvent model for 1D-RISM calculation available in
-                        "$AMBERHOME/dat/rism1d/model/{smodel}.mdl" [SPC].""",
-                        default="SPC")
+                        "$AMBERHOME/dat/rism1d/model/{smodel}.mdl" [cSPCE].""",
+                        default="cSPCE")
     rism1d_options.add_argument('--rism1d',
                         help="""Type of 1D-RISM theory. Only DRISM has been
                         extensively tested [DRISM].""",
@@ -240,11 +216,9 @@ def process_command_line(argv):
                             """Options related to the main calculation.""")
     rism3d_options.add_argument('--closure',
                         help="""Brdige closure for 3D-RISM and 1D-RISM calculation
-                        if it is necessary. Either HNC, KH, PSEn
-                        (n in PSEn should be an integer) or a list of them
-                        for sequential convergence. For 1D-RISM calculation
-                        only last closure will be used [PSE3].""",
-                        default=["PSE3"], nargs='*')
+                        if it is necessary. Either hnc, kh, or pseN
+                        (N in pseN should be an integer) [pse3].""",
+                        default="pse3")
     rism3d_options.add_argument('-t', '--temperature',
                         help="""Temperature in K at which calculation will be
                         preformed. If xvv file was provided, this option will be
@@ -285,7 +259,7 @@ def process_command_line(argv):
                         help="""Write total correlation function in k space.""",
                         action='store_true')
     rism3d_options.add_argument('--write_asymp',
-                        help="""Write asymptotics of total and direct 
+                        help="""Write asymptotics of total and direct
                         correlation fuctions in real space.""",
                         action='store_true')
     rism3d_options.add_argument('--noasympcorr',
@@ -422,11 +396,11 @@ def water_concentration(T):
 class Xvv(object):
     """ Wrapper around xvvfile used to compute 3d-rism pressure """
     def __init__(self, fname):
-        """ Read xvvfile and set instance attributes 
-        
+        """ Read xvvfile and set instance attributes
+
         Parameters
         ----------
-        
+
         fname : string
             Path to a valid xvv file
         """
@@ -456,12 +430,12 @@ class Xvv(object):
             if len(line) <= 1:
                 continue
             if line[1] == 'POINTERS':
-                data = map(int, lines[i+2].split())
+                data = list(map(int, lines[i+2].split()))
                 self.ngrid, self.nsites, self.nspecies = data
             if line[1] == 'MTV':
-                self.multiplicities = map(int, lines[i+2].split())
+                self.multiplicities = list(map(int, lines[i+2].split()))
             if line[1] == 'NVSP':
-                self.unique_sites_per_species = map(int, lines[i+2].split())
+                self.unique_sites_per_species = list(map(int, lines[i+2].split()))
             if line[1] == 'THERMO':
                 data = lines[i+2].split()
                 self.temperature = float(data[0]) # K
@@ -471,11 +445,11 @@ class Xvv(object):
                 #split into groups of 4
                 self.atom_names = [data[i:i+4].strip() for i in range(0, len(data), 4)]
             if line[1] == 'RHOV' and len(line) == 2:
-                self.densities = map(float, lines[i+2].split())
+                self.densities = list(map(float, lines[i+2].split()))
                 #are there more lines with density?
                 counter = 3
                 while lines[i+counter].startswith(' '):
-                    self.densities.extend(map(float, lines[i+counter].split()))
+                    self.densities.extend(list(map(float, lines[i+counter].split())))
                     counter += 1
                 try:
                     assert len(self.densities) == len(self.atom_names)
@@ -503,18 +477,18 @@ class Xvv(object):
             self.normalized_densities.append(density/multiplicity)
         self.species_densities = []
         self.total_sites_per_species = []
-        pointer = 0 
+        pointer = 0
         for sp_sites in self.unique_sites_per_species:
             pointer += sp_sites
             total_sites = sum(self.multiplicities[pointer - sp_sites:pointer])
             self.total_sites_per_species.append(total_sites)
             self.species_densities.append(self.normalized_densities[pointer - 1])
         assert len(self.species_densities) == self.nspecies
-    
+
     def compute_3drism_pressures(self, k=0):
         """ Compute 3drism pressure using loaded xvv file.
-        Uses equation 20 from the article by Sergiievskyi et al. 
-        (http://dx.doi.org/10.1063/1.4935065). 
+        Uses equation 20 from the article by Sergiievskyi et al.
+        (http://dx.doi.org/10.1063/1.4935065).
 
         Parameters
         ----------
@@ -523,7 +497,7 @@ class Xvv(object):
             sensitive to it. It is recommended to experiment with a couple of
             k values or better, plot dependency of pressure on it to see
             which value works best.
-            
+
         Return
         ------
         pressures : tuple of floats
@@ -544,68 +518,6 @@ class Xvv(object):
         pressure = pressure*self.temperature*K_B
         ideal_pressure  = sum(self.species_densities)*K_B*self.temperature
         return pressure, pressure - ideal_pressure
-
-
-class RunCmd(threading.Thread):
-    """ Will only work on Unix-like systems. And sometimes it will not work
-    even there. """
-    def __init__(self, cmd, timeout, logfile, cwd='.'):
-        """ Run subprocess for a fixed ammount of time and then kill it. Writes
-        both stdout and stderr to logfile as the process continues.
-
-        Parameters
-        ----------
-        cmd : list
-            Command to execute.
-
-        timeout : float
-            Time in minutes after which process will be killed. Pass 0 to
-            let process run indefinitely.
-
-        logfile : A writable file object
-            A file to which calculation stdout and stderr will be written
-
-        cwd : string, default .
-            Directory in which process will be run
-        """
-        threading.Thread.__init__(self)
-        self.cmd = cmd
-        self.logfile = logfile
-        self.cwd = cwd
-        if timeout == 0:
-            self.timeout = None
-        else:
-            self.timeout = timeout*60 #convert to seconds
-
-    def run(self):
-        self.p = subprocess.Popen(self.cmd, preexec_fn=os.setsid,
-                           stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT,
-                           cwd=self.cwd)
-        lines_iterator = iter(self.p.stdout.readline, "") #terminates when readline returns ""
-        for line in lines_iterator:
-            self.logfile.write(line)
-            self.logfile.flush()
-
-    def run_and_timeout(self):
-        """Run subprocess
-
-        Returns
-        -------
-        out : int
-            Exit code of subprocess
-        """
-        self.start()
-        self.join(self.timeout)
-
-        if self.is_alive():
-            os.killpg(self.p.pid, signal.SIGTERM)
-            self.join()
-            print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            print(self.cmd)
-            print('Has run out of time')
-            print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            raise RuntimeError("3D-RISM calc didn't finish in time.")
 
 
 def prepare_calc_directory(mol_path, T, dir_name=None):
@@ -639,7 +551,7 @@ def prepare_calc_directory(mol_path, T, dir_name=None):
                         name_without_path.rsplit('.',1)[0] + '_' + str(T))
     try:
         os.mkdir(dir_name)
-    except OSError, e:
+    except OSError as e:
         if e.errno == 17:
             pass
         else:
@@ -657,7 +569,7 @@ def prepare_logfile(name, argv):
     ----------
     name : string
         Full path to calculation directory/name
-    
+
     argv : list
         Command used to start script
 
@@ -726,21 +638,21 @@ def generate_prmtop(name, ext, logfile, molcharge=0, multiplicity=1):
                      '-s', '2'       # status info ; 2 means verbose
                      ] + chg,
                      cwd=p)
-    logfile.write(ante_out)
+    logfile.write(ante_out.decode('utf8'))
     #Run parmchk to generate missing gaff force field parameters
     parm_out = subprocess.check_output(['parmchk2',
                      '-i', '{}.mol2'.format(no_p_name),
                      '-f', 'mol2',
                      '-o', '{}.frcmod'.format(no_p_name)], #file with missing FF params
                      cwd=p)
-    logfile.write(parm_out)
+    logfile.write(parm_out.decode('utf8'))
     logfile.flush()
     #Run tleap to generate topology and coordinates for the molecule
     leap_input_name = os.path.join(p, 'runleap.in')
     with open(leap_input_name, 'w') as f:
         f.write(RUNLEAP.format(name=no_p_name))
     leap_out = subprocess.check_output(['tleap', '-f', 'runleap.in'], cwd=p)
-    logfile.write(leap_out)
+    logfile.write(leap_out.decode('utf8'))
     logfile.flush()
     prmtop_name = '{}.prmtop'.format(no_p_name)
     return prmtop_name
@@ -749,13 +661,13 @@ def generate_prmtop(name, ext, logfile, molcharge=0, multiplicity=1):
 def check_consistency(prmtop_name, name):
     """ Check if the ordering of atoms is the same both in pdb file and in
     prmtop file.
-    
+
     Parameters
     ----------
-    
+
     prmtop_name : string
         Path to prmtop file
-    
+
     name : string
         Calculation name
     """
@@ -773,7 +685,7 @@ def check_consistency(prmtop_name, name):
         lastcol=80 # last column in each prmtop line
         for line in f:
             if line.startswith('%FLAG ATOM_NAME'):
-                f.next() # skip one line
+                next(f) # skip one line
                 atom_name_row = next(f).strip('\n')
                 while not atom_name_row.startswith('%'):
                     prmtop_atom_string += atom_name_row[:lastcol+1]
@@ -829,7 +741,7 @@ def prepare_prmtop(args, name, ext, dir_name, logfile):
         prmtop_name = generate_prmtop(name, ext, logfile, chg, args.multiplicity)
     else:
         if ext != 'pdb':
-            raise ValueError, "Use of prmtop requires a pdb format."
+            raise ValueError("Use of prmtop requires a pdb format.")
         print('Reading user provided prmtop file')
         try:
             shutil.copy(args.prmtop, dir_name)
@@ -857,12 +769,12 @@ def prepare_prmtop(args, name, ext, dir_name, logfile):
     with open(os.path.join(dir_name, prmtop_name), 'w') as f:
         f.writelines(prm_lines)
     return prmtop_name
-    
-    
+
+
 def minimize_solute(name, logfile, prmtop_name, args, xvv):
-    """ Minimize the solute structure using Sander. 
+    """ Minimize the solute structure using Sander.
     The pdb file in the calculation directory **will** be overwritten.
-    
+
     Parameters
     ----------
 
@@ -871,11 +783,11 @@ def minimize_solute(name, logfile, prmtop_name, args, xvv):
 
     logfile : File_object
         Calculation log
-    
+
     prmtop_name : string, default None
         Topology file for calculation. Path should be given
         relative to the directory in which pdb file is located.
-        
+
     args : Namespace
         Command line arguments
 
@@ -903,9 +815,9 @@ def minimize_solute(name, logfile, prmtop_name, args, xvv):
                          '-fo', 'rst',   #output format
                          ],
                          cwd=p)
-        logfile.write(conv_out)
+        logfile.write(conv_out.decode('utf8'))
     with open(os.path.join(p, MIN_SCRIPT_NAME), 'w') as f:
-        f.write(min_script.format(closure=args.closure[-1]))
+        f.write(min_script.format(closure=args.closure))
     # minimize solute and overwrite restart file
     min_out = subprocess.check_output(['sander',
                                        '-O', #overwrite files
@@ -916,7 +828,7 @@ def minimize_solute(name, logfile, prmtop_name, args, xvv):
                                        '-xvv', os.path.relpath(xvv, p)
                                        ],
                                        cwd=p)
-    logfile.write(min_out)
+    logfile.write(min_out.decode('utf8'))
     # converst restart file to pdb and write
     p = subprocess.Popen(['ambpdb', '-c', '{}.incrd'.format(no_p_name),
                           '-p', prmtop_name], stdout=subprocess.PIPE,
@@ -930,7 +842,7 @@ def minimize_solute(name, logfile, prmtop_name, args, xvv):
 
 def run_rism1d(name, logfile, T=298.15, smodel="SPC", rism1d="DRISM",
                         closure="PSE3", xvv=None):
-    """Generate xvv file at a given temperature. 
+    """Generate xvv file at a given temperature.
 
     Parameters
     ----------
@@ -973,13 +885,13 @@ def run_rism1d(name, logfile, T=298.15, smodel="SPC", rism1d="DRISM",
         conc = round(water_concentration(T), 3)
         succ_srcirpt = SOLV_SUCEPT_SCRPT.format(temp=T, diel=diel, conc=conc,
                                                 smodel=smodel, rism1d=rism1d,
-                                                closure=closure,
+                                                closure=closure.upper(),
                                                 name1d=rism1d_name)
         with open(xvv_script_name, 'w') as f:
             f.write(succ_srcirpt)
         xvv_out = subprocess.check_output(['bash', xvv_script_name_no_p],
                                           cwd=p)
-        logfile.write(xvv_out)
+        logfile.write(xvv_out.decode('utf8'))
         logfile.flush()
         xvv = '{}.xvv'.format(rism1d_name)
     else:
@@ -1048,7 +960,7 @@ class RISM3D_Singlpnt(object):
                           solvbox=False,
                           grdspc=(0.5, 0.5, 0.5),
                           tolerance=1e-5, polar_decomp=False,
-                          verbose=0, maxstep=500, 
+                          verbose=0, maxstep=500,
                           rism3d_path='rism3d.snglpnt'):
         """ Setup calculation rism3d.snglpnt. calculation.
 
@@ -1072,15 +984,15 @@ class RISM3D_Singlpnt(object):
         write_c : boolean, default False
             Specifies wheter program will write direct correlation
             functions.
-            
+
         write_u : boolean, default False
             Specifies wheter program will write potential energy
             grid.
-            
+
         write_asymp : boolean, default False
-            Write asymptotics of total and direct correlation fuctions in 
-            real space.         
-            
+            Write asymptotics of total and direct correlation fuctions in
+            real space.
+
         noasympcorr : boolean, default False
             Don't use long range corrections to compute thermodynamics.
 
@@ -1106,7 +1018,7 @@ class RISM3D_Singlpnt(object):
 
         maxstep: int, default 1000
             Number of iterations in 3D-RISM calculation.
-            
+
         rism3d_path : str, default rism3d.snglpnt
             Absolute path or exact name of rism3d.snglpnt program
         """
@@ -1116,10 +1028,11 @@ class RISM3D_Singlpnt(object):
         self.run_flags_list = [rism3d_path,
              '--pdb', '{}.pdb'.format(self.no_p_name),
              '--prmtop', self.prmtop_name,
+             '--rst', '{}.incrd'.format(self.no_p_name),
              '--xvv', self.xvv_name,
              '--grdspc', grdspc,]
         self.run_flags_list.extend(['--tolerance'] + tolerance)
-        self.run_flags_list.extend(['--closure'] + closure)
+        self.run_flags_list.extend(['--closure', closure])
         if solvbox:
             self.run_flags_list.extend(['--solvbox', solvbox])
         else:
@@ -1165,13 +1078,9 @@ class RISM3D_Singlpnt(object):
         """
         start_time = time.time()
         #print(self.run_flags_list)
-        if IS_UNIX:  # use timeout
-            run3drism = RunCmd(self.run_flags_list, timeout,
-                               self.logfile, cwd=self.p)
-            run3drism.run_and_timeout()
-        else:    # windows
-            rism_out = subprocess.check_output(self.run_flags_list, cwd=self.p)
-            self.logfile.write(rism_out)
+        self.logfile.write('3D-RISM command: {}\n'.format(self.run_flags_list))
+        rism_out = subprocess.check_output(self.run_flags_list, cwd=self.p)
+        self.logfile.write(rism_out.decode('utf8'))
         self.logfile.flush()
         #write timestamp and close
         end_time = time.time()
@@ -1223,7 +1132,7 @@ def clean_up(name, T, level):
     for f in will_be_deleted_list:
         try:
             os.unlink(f)
-        except OSError, e:
+        except OSError as e:
             if e.errno == 2:
                 pass
             else:
@@ -1262,7 +1171,7 @@ def write_results(name, xvv_obj):
         raise ValueError("Cannot find pmv value in log file. Most likely calculation didn't converge.")
     # compute PC
     pres, pres_plus = xvv_obj.compute_3drism_pressures() # [kcal/mol/A^3]
-    PC = exchem - pres*pmv # pressure correction [kcal/mol] 
+    PC = exchem - pres*pmv # pressure correction [kcal/mol]
     PC_plus = exchem - pres_plus*pmv # pressure correction plus [kcal/mol]
     #Write and print results
     results = RESULTS.format(exchem=exchem, pmv=pmv, PC=PC, PC_plus=PC_plus,
@@ -1287,7 +1196,7 @@ def main(argv):
     prmtop_name = prepare_prmtop(args, name, ext, dir_name, logfile)
     #xvv is the path to xvv file relative to calc directory
     xvv = run_rism1d(name, logfile, args.temperature, args.smodel,
-                     args.rism1d, args.closure[-1], xvv=args.xvv)
+                     args.rism1d, args.closure, xvv=args.xvv)
     xvv_obj = Xvv(os.path.join(dir_name, xvv))
     if args.minimize:
         print("Minimizing solute.")
@@ -1295,8 +1204,8 @@ def main(argv):
     rism_calc = RISM3D_Singlpnt(name, xvv_obj.temperature,
                                 logfile, prmtop_name=prmtop_name,
                                 xvv=xvv)
-    rism_calc.setup_calculation(args.closure, 
-                                write_g=args.write_g, 
+    rism_calc.setup_calculation(args.closure,
+                                write_g=args.write_g,
                                 write_h=args.write_h,
                                 write_c=args.write_c,
                                 write_u=args.write_u,
@@ -1315,10 +1224,10 @@ def main(argv):
     pc_plus = write_results(name, xvv_obj)
     clean_up(name, xvv_obj.temperature, args.clean_up)
     return pc_plus
-    
+
 
 if __name__ == '__main__':
     main(sys.argv[1:])
-    
+
 
 
