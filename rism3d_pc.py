@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Created on Thu Jan 30 16:04:49 2014
 
@@ -62,7 +61,7 @@ import numpy as np
 
 
 ## Non RISM globals ##
-__version__ = '2016.1'
+__version__ = '2020.1'
 
 REQUIRED_EXECUTABLES = ['antechamber', 'parmchk2', 'tleap', 'rism3d.snglpnt',
                         'rism1d', 'sander', 'ambpdb']
