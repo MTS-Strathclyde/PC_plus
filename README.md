@@ -1,6 +1,10 @@
 PC+
 ===
 
+_Note: dockerized version of this script is available here: https://github.com/MTS-Strathclyde/pcplus-docker_ 
+
+
+
 Python script to simplify computation of 3D-RISM pressure corrected (PC+/PC) hydration free energy. The 3D-RISM pressure is computed using the equation 20. from the following article: 
 
 _Sergiievskyi, V.; Jeanmairet, G.; Levesque, M.; Borgis, D. Solvation Free-Energy Pressure Corrections in the Three Dimensional Reference Interaction Site Model. J. Chem. Phys. 2015, 143, 184116. http://dx.doi.org/10.1063/1.4935065_
@@ -12,6 +16,7 @@ _Misin, M.; Fedorov, M.; Palmer, D. Hydration Free Energies of Ionic Species by 
 and
 
 _Misin, M.; Fedorov, M. V.; Palmer, D. S. Accurate Hydration Free Energies at a Wide Range of Temperatures from 3D-RISM. J. Chem. Phys. 2015, 142, 091105. http://dx.doi.org/10.1063/1.4914315_
+
 
 
 Authors
