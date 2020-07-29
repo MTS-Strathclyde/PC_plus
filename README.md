@@ -84,7 +84,7 @@ Prerequisites
 
 The script requires:
 
-* Python 2.7 or later: http://www.python.org/
+* Python 3.6 or later: http://www.python.org/
 * AmberTools18 or later: http://ambermd.org/
 
 
