@@ -204,7 +204,7 @@ def process_command_line(argv):
                         temeprature will be read from this file.""")
     rism1d_options.add_argument('--smodel',
                         help="""Solvent model for 1D-RISM calculation available in
-                        "$AMBERHOME/dat/rism1d/model/{smodel}.mdl" [cSPCE].""",
+                        "$AMBERHOME/dat/rism1d/mdl/{smodel}.mdl" [cSPCE].""",
                         default="cSPCE")
     rism1d_options.add_argument('--rism1d',
                         help="""Type of 1D-RISM theory. Only DRISM has been
@@ -852,7 +852,7 @@ def run_rism1d(name, logfile, T=298.15, smodel="SPC", rism1d="DRISM",
         A calculation temperature
 
     smodel : string, default SPC
-        Water model available in $AMBERHOME/dat/rism1d/model/{smodel}.mdl
+        Water model available in $AMBERHOME/dat/rism1d/mdl/{smodel}.mdl
 
     rism1d : string, default DRISM
         Type of 1D-RISM theory. Only DRISM has been extensively tested

@@ -1,11 +1,11 @@
 PC+
 ===
 
-_Note: dockerized version of this script is available here: https://github.com/MTS-Strathclyde/pcplus-docker_ 
+_Note: dockerized version of this script is available here: https://github.com/MTS-Strathclyde/pcplus-docker_
 
 
 
-Python script to simplify computation of 3D-RISM pressure corrected (PC+/PC) hydration free energy. The 3D-RISM pressure is computed using the equation 20. from the following article: 
+Python script to simplify computation of 3D-RISM pressure corrected (PC+/PC) hydration free energy. The 3D-RISM pressure is computed using the equation 20. from the following article:
 
 _Sergiievskyi, V.; Jeanmairet, G.; Levesque, M.; Borgis, D. Solvation Free-Energy Pressure Corrections in the Three Dimensional Reference Interaction Site Model. J. Chem. Phys. 2015, 143, 184116. http://dx.doi.org/10.1063/1.4935065_
 
@@ -52,7 +52,7 @@ Detailed output can be found in methane_298.15/methane.log
 ```
 
 2) 350 K calculation with tip3p water
-	
+
 ```
 $ python rism3d_pc.py methane.pdb -t 350 --smodel TP3
 Starting SFE calculation for methane.pdb at T=350.0 K
@@ -64,7 +64,7 @@ RISM exchem=9.01341914 kcal/mol
 PC+ dG*(hyd)=1.35551076507 kcal/mol
 Detailed output can be found in methane_350.0/methane.log
 ```
-	
+
 3) Using existing topology and susceptibility (xvv) files
 
 ```
@@ -85,7 +85,7 @@ Prerequisites
 The script requires:
 
 * Python 2.7 or later: http://www.python.org/
-* AmberTools13 or later: http://ambermd.org/
+* AmberTools18 or later: http://ambermd.org/
 
 
 Get some help
@@ -146,7 +146,7 @@ Get some help
                             ignored. Solvent density as well as calculation
                             temeprature will be read from this file.
       --smodel SMODEL       Solvent model for 1D-RISM calculation available in
-                            "$AMBERHOME/dat/rism1d/model/{smodel}.mdl" [SPC].
+                            "$AMBERHOME/dat/rism1d/mdl/{smodel}.mdl" [SPC].
       --rism1d RISM1D       Type of 1D-RISM theory. Only DRISM has been
                             extensively tested [DRISM].
 
