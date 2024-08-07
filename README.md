@@ -21,7 +21,7 @@ _Misin, M.; Fedorov, M. V.; Palmer, D. S. Accurate Hydration Free Energies at a 
 
 Authors
 -------
-Maksim Mišin <mishin1991@gmail.com>
+Maksim Mišin
 
 Usage examples
 --------------
